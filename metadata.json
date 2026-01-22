@@ -1,0 +1,7 @@
+{
+  "name": "SpeakEasy AAC (VN)",
+  "description": "Ứng dụng Giao tiếp Tăng cường và Thay thế (AAC) tiếng Việt, hỗ trợ AI, tối ưu cho trẻ tự kỷ. Có giao diện linh hoạt cho điện thoại và máy tính bảng, biểu tượng lớn và dự đoán từ vựng thông minh.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}
