@@ -54,10 +54,16 @@ function App() {
   });
 
   // --- VOICE SETTINGS ---
+  // Fix: Merging with defaults to ensure 'forceOnline' exists even for returning users
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
       try {
+          const defaults = { pitch: 1.0, rate: 1.0, forceOnline: false };
           const saved = localStorage.getItem('aac-voice-settings');
-          return saved ? JSON.parse(saved) : { pitch: 1.0, rate: 1.0, forceOnline: false };
+          if (saved) {
+              const parsed = JSON.parse(saved);
+              return { ...defaults, ...parsed };
+          }
+          return defaults;
       } catch {
           return { pitch: 1.0, rate: 1.0, forceOnline: false };
       }

@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Download, Upload, Share2, AlertTriangle, QrCode, Copy, Check, Eye, EyeOff, Volume2, Mic2, Link, Edit2, Save, Wifi, WifiOff } from 'lucide-react';
+import { X, Download, Upload, Share2, AlertTriangle, QrCode, Copy, Check, Eye, EyeOff, Volume2, Mic2, Link, Edit2, Save, Wifi, WifiOff, PlayCircle } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { AppSettings, VoiceSettings } from '../App';
 import { speak } from '../services/ttsService';
@@ -208,22 +208,31 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
              
              <div className="p-4 flex flex-col gap-4">
-                 {/* Force Online Toggle */}
-                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                 
+                 {/* Force Online Toggle - Updated UI */}
+                 <div className="flex items-center justify-between pb-3 border-b border-slate-100 bg-slate-50 p-3 rounded-lg border">
                      <div className="flex flex-col">
                         <span className="text-sm font-bold text-slate-800 flex items-center gap-2">
-                            {localVoiceSettings.forceOnline ? <Wifi size={16} className="text-green-600"/> : <WifiOff size={16} className="text-slate-400"/>}
+                            {localVoiceSettings.forceOnline ? <Wifi size={18} className="text-green-600"/> : <WifiOff size={18} className="text-slate-400"/>}
                             Luôn dùng giọng Online
                         </span>
-                        <span className="text-xs text-slate-500 mt-1">Bật nếu mất tiếng hoặc sai giọng.</span>
+                        <span className="text-xs text-slate-500 mt-0.5">Bật nếu bị mất tiếng.</span>
                      </div>
-                     <button 
-                        onClick={() => handleVoiceChange('forceOnline', !localVoiceSettings.forceOnline)}
-                        onPointerUp={handlePreviewVoice}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors ${localVoiceSettings.forceOnline ? 'bg-green-500' : 'bg-slate-300'}`}
-                     >
-                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${localVoiceSettings.forceOnline ? 'translate-x-6' : 'translate-x-0'}`} />
-                     </button>
+                     <div className="flex items-center gap-2">
+                        <button 
+                            onClick={handlePreviewVoice}
+                            className="p-1 text-violet-600 hover:bg-violet-100 rounded-full"
+                            title="Thử giọng"
+                        >
+                            <PlayCircle size={20} />
+                        </button>
+                        <button 
+                            onClick={() => handleVoiceChange('forceOnline', !localVoiceSettings.forceOnline)}
+                            className={`relative w-11 h-6 rounded-full p-1 transition-colors duration-200 ${localVoiceSettings.forceOnline ? 'bg-green-500' : 'bg-slate-300'}`}
+                        >
+                            <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform duration-200 ${localVoiceSettings.forceOnline ? 'translate-x-5' : 'translate-x-0'}`} />
+                        </button>
+                     </div>
                  </div>
 
                  {/* Pitch Slider */}
@@ -243,6 +252,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         style={{ touchAction: 'none' }}
                         className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     />
+                    <div className="flex justify-between mt-1 px-1">
+                        <span className="text-[10px] text-slate-400">Trầm</span>
+                        <span className="text-[10px] text-slate-400">Cao</span>
+                    </div>
                  </div>
 
                  {/* Rate Slider */}
@@ -278,9 +291,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                      <span className="text-sm font-medium text-slate-700">Hiển thị nút "Sửa" (✏️)</span>
                      <button 
                         onClick={() => toggleSetting('showEditBtn')}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors ${currentSettings.showEditBtn ? 'bg-green-500' : 'bg-slate-300'}`}
+                        className={`w-11 h-6 rounded-full p-1 transition-colors ${currentSettings.showEditBtn ? 'bg-green-500' : 'bg-slate-300'}`}
                      >
-                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${currentSettings.showEditBtn ? 'translate-x-6' : 'translate-x-0'}`} />
+                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${currentSettings.showEditBtn ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
                  </div>
 
@@ -288,9 +301,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                      <span className="text-sm font-medium text-slate-700">Hiển thị nút "Đoán từ AI" (✨)</span>
                      <button 
                         onClick={() => toggleSetting('showAIBtn')}
-                        className={`w-12 h-6 rounded-full p-1 transition-colors ${currentSettings.showAIBtn ? 'bg-green-500' : 'bg-slate-300'}`}
+                        className={`w-11 h-6 rounded-full p-1 transition-colors ${currentSettings.showAIBtn ? 'bg-green-500' : 'bg-slate-300'}`}
                      >
-                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${currentSettings.showAIBtn ? 'translate-x-6' : 'translate-x-0'}`} />
+                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${currentSettings.showAIBtn ? 'translate-x-5' : 'translate-x-0'}`} />
                      </button>
                  </div>
                  <p className="text-xs text-slate-400 mt-1">Tắt các nút này để trẻ không vô tình chỉnh sửa thẻ.</p>
