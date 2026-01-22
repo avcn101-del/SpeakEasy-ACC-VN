@@ -8,7 +8,7 @@ import { SettingsModal } from './components/SettingsModal';
 import { AddWordModal } from './components/AddWordModal';
 import { speak } from './services/ttsService';
 import { predictNextSymbols } from './services/geminiService';
-import { Sparkles, Edit3, XCircle, Settings, ArrowRightLeft } from 'lucide-react';
+import { Sparkles, Edit3, XCircle, Settings } from 'lucide-react';
 
 // Animation style
 const ANIMATION_STYLES = `
@@ -76,7 +76,6 @@ function App() {
   
   // SWAP/REORDER STATE
   const [moveSourceId, setMoveSourceId] = useState<string | null>(null);
-  const [windowWidth, setWindowWidth] = useState(window.innerWidth);
 
   // Persistence Effects
   useEffect(() => {
@@ -98,18 +97,13 @@ function App() {
   }, [voiceSettings]);
 
 
-  // Responsive Hook Logic
+  // Init Voice
   useEffect(() => {
-    const handleResize = () => setWindowWidth(window.innerWidth);
-    window.addEventListener('resize', handleResize);
-    if ('speechSynthesis' in window) {
+    if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
       window.speechSynthesis.getVoices();
       window.speechSynthesis.onvoiceschanged = () => window.speechSynthesis.getVoices();
     }
-    return () => window.removeEventListener('resize', handleResize);
   }, []);
-
-  const isTablet = windowWidth >= 768;
 
   // --- INTERACTION HANDLERS ---
 
@@ -284,117 +278,117 @@ function App() {
         isSpeaking={isSpeaking}
       />
 
-      <div className="flex-1 overflow-y-auto p-2 md:p-4 pb-24 safe-bottom">
-        
-        {/* Controls */}
-        <div className="mb-2 flex justify-between items-center px-2">
-            <div className="flex-1">
-                 <button
-                    onClick={() => setIsSettingsOpen(true)}
-                    className="p-2 md:p-3 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors"
-                 >
-                    <Settings size={24} />
-                 </button>
-             </div>
+      {/* Main Content Area */}
+      <div className="flex-1 overflow-y-auto p-2 md:p-6 pb-32 safe-bottom">
+        <div className="max-w-screen-2xl mx-auto">
 
-            <div className="flex-1 flex justify-center">
-                 {appSettings.showAIBtn && sentence.length > 0 && currentView !== 'AI' && !isEditMode && (
-                    <button 
-                        onClick={handleAiPrediction}
-                        className="flex items-center gap-2 px-4 py-1.5 bg-gradient-to-r from-violet-500 to-fuchsia-500 text-white rounded-full font-bold shadow-md hover:shadow-lg transform transition hover:scale-105 active:scale-95 text-sm md:text-base"
-                    >
-                        <Sparkles size={16} />
-                        <span>Đoán từ</span>
-                    </button>
-                 )}
-            </div>
-
-            <div className="flex-1 flex justify-end">
-                {appSettings.showEditBtn && (
+            {/* Controls */}
+            <div className="mb-4 flex justify-between items-center px-1">
+                <div className="flex-1">
                     <button
-                        onClick={() => {
-                            setIsEditMode(!isEditMode);
-                            setMoveSourceId(null); 
-                        }}
-                        className={`
-                            p-2 md:p-3 rounded-full shadow-lg border-2 transition-all
-                            ${isEditMode 
-                                ? 'bg-indigo-600 text-white border-indigo-700 animate-pulse' 
-                                : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
-                            }
-                        `}
+                        onClick={() => setIsSettingsOpen(true)}
+                        className="p-3 md:p-4 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors active:scale-95"
+                        aria-label="Cài đặt"
                     >
-                        {isEditMode ? <XCircle size={20} className="md:w-6 md:h-6" /> : <Edit3 size={20} className="md:w-6 md:h-6" />}
+                        <Settings size={28} className="md:w-8 md:h-8" />
                     </button>
-                )}
-            </div>
-        </div>
-        
-        {isEditMode && (
-            <div className="text-center mb-4 p-2 bg-indigo-50 text-indigo-800 rounded-lg text-xs md:text-sm border border-indigo-200 mx-2 flex flex-col gap-1">
-                <span>Chế độ chỉnh sửa đang bật.</span>
-                <span className="text-[10px] opacity-80">
-                   Nhấn vào ô trống (➕) để thêm từ mới. Nhấn vào thẻ để sửa ảnh.
-                </span>
-                {moveSourceId && (
-                     <div className="mt-2 bg-yellow-100 text-yellow-800 p-1 rounded border border-yellow-300 font-bold animate-pulse">
-                        Đang chọn vị trí... Nhấn vào thẻ khác để hoán đổi.
-                     </div>
-                )}
-            </div>
-        )}
-
-        {/* AI PREDICTION VIEW */}
-        {currentView === 'AI' && (
-            <div className="mb-4">
-                <div className="flex justify-between items-center mb-2 px-1">
-                    <h3 className="font-bold text-slate-500 text-sm uppercase">Gợi ý AI</h3>
-                    <button onClick={() => setCurrentView('HOME')} className="text-blue-500 text-sm font-bold">Đóng</button>
                 </div>
-                
-                {isAiLoading && (
-                    <div className="flex justify-center p-8">
-                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-slate-500"></div>
+
+                <div className="flex-1 flex justify-center">
+                    {appSettings.showAIBtn && sentence.length > 0 && currentView !== 'AI' && !isEditMode && (
+                        <button 
+                            onClick={handleAiPrediction}
+                            className="flex items-center gap-2 px-6 py-3 bg-gradient-to-r from-violet-600 to-fuchsia-600 text-white rounded-full font-bold shadow-lg hover:shadow-xl transform transition hover:scale-105 active:scale-95 text-base md:text-xl"
+                        >
+                            <Sparkles size={20} className="md:w-6 md:h-6" />
+                            <span>Đoán từ</span>
+                        </button>
+                    )}
+                </div>
+
+                <div className="flex-1 flex justify-end">
+                    {appSettings.showEditBtn && (
+                        <button
+                            onClick={() => {
+                                setIsEditMode(!isEditMode);
+                                setMoveSourceId(null); 
+                            }}
+                            className={`
+                                p-3 md:p-4 rounded-full shadow-lg border-2 transition-all active:scale-95
+                                ${isEditMode 
+                                    ? 'bg-indigo-600 text-white border-indigo-700 animate-pulse' 
+                                    : 'bg-white text-slate-500 border-slate-200 hover:bg-slate-100'
+                                }
+                            `}
+                        >
+                            {isEditMode ? <XCircle size={24} className="md:w-8 md:h-8" /> : <Edit3 size={24} className="md:w-8 md:h-8" />}
+                        </button>
+                    )}
+                </div>
+            </div>
+            
+            {isEditMode && (
+                <div className="text-center mb-6 p-4 bg-indigo-50 text-indigo-800 rounded-xl text-sm md:text-base border-2 border-indigo-200 mx-1 flex flex-col gap-2 shadow-sm">
+                    <span className="font-bold">Chế độ chỉnh sửa đang bật</span>
+                    <span className="opacity-80">
+                    Nhấn vào ô trống (➕) để thêm từ mới. Nhấn vào thẻ để sửa ảnh.
+                    </span>
+                    {moveSourceId && (
+                        <div className="mt-2 bg-yellow-100 text-yellow-800 p-2 rounded-lg border border-yellow-300 font-bold animate-pulse">
+                            Đang chọn vị trí... Nhấn vào thẻ khác để hoán đổi.
+                        </div>
+                    )}
+                </div>
+            )}
+
+            {/* AI PREDICTION VIEW */}
+            {currentView === 'AI' && (
+                <div className="mb-4">
+                    <div className="flex justify-between items-center mb-4 px-1">
+                        <h3 className="font-bold text-slate-500 text-base md:text-lg uppercase">Gợi ý AI</h3>
+                        <button onClick={() => setCurrentView('HOME')} className="text-blue-600 text-base md:text-lg font-bold px-4 py-2 bg-blue-50 rounded-lg">Đóng</button>
                     </div>
-                )}
-                
-                {!isAiLoading && predictedSymbols.length === 0 && (
-                     <div className="text-center p-4 text-slate-400 italic">Không có gợi ý.</div>
-                )}
+                    
+                    {isAiLoading && (
+                        <div className="flex justify-center p-12">
+                            <div className="animate-spin rounded-full h-12 w-12 border-b-4 border-slate-500"></div>
+                        </div>
+                    )}
+                    
+                    {!isAiLoading && predictedSymbols.length === 0 && (
+                        <div className="text-center p-8 text-slate-400 italic text-lg">Không có gợi ý.</div>
+                    )}
 
-                <div className={`grid ${isTablet ? 'grid-cols-8 gap-3 md:gap-4' : 'grid-cols-4 gap-2'}`}>
-                    {predictedSymbols.map(symbol => (
-                         <AACCard key={symbol.id} symbol={symbol} onClick={handleSymbolClick} />
-                    ))}
+                    <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 md:gap-4">
+                        {predictedSymbols.map(symbol => (
+                            <AACCard key={symbol.id} symbol={symbol} onClick={handleSymbolClick} />
+                        ))}
+                    </div>
+                    <hr className="my-8 border-slate-200" />
                 </div>
-                <hr className="my-4 border-slate-200" />
-            </div>
-        )}
+            )}
 
-        {/* MAIN GRID */}
-        {currentView === 'HOME' && (
-             <div className={`
-               grid 
-               ${isTablet ? 'grid-cols-8 gap-3 md:gap-4' : 'grid-cols-4 gap-2'}
-               auto-rows-min
-             `}>
-               {coreVocab.map(symbol => (
-                   <AACCard 
-                       key={symbol.id} 
-                       symbol={symbol} 
-                       onClick={handleSymbolClick} 
-                       isEditMode={isEditMode}
-                       onImageUpdate={handleImageUpdate}
-                       onImageReset={handleImageReset}
-                       onMoveStart={handleMoveStart}
-                       isMoving={moveSourceId === symbol.id}
-                       isSwapModeActive={!!moveSourceId}
-                       onAddWord={handleAddWordClick}
-                       onDeleteWord={handleDeleteCustomWord}
-                   />
-               ))}
-             </div>
-        )}
+            {/* MAIN GRID */}
+            {currentView === 'HOME' && (
+                <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 md:gap-4 lg:gap-5 pb-20">
+                {coreVocab.map(symbol => (
+                    <AACCard 
+                        key={symbol.id} 
+                        symbol={symbol} 
+                        onClick={handleSymbolClick} 
+                        isEditMode={isEditMode}
+                        onImageUpdate={handleImageUpdate}
+                        onImageReset={handleImageReset}
+                        onMoveStart={handleMoveStart}
+                        isMoving={moveSourceId === symbol.id}
+                        isSwapModeActive={!!moveSourceId}
+                        onAddWord={handleAddWordClick}
+                        onDeleteWord={handleDeleteCustomWord}
+                    />
+                ))}
+                </div>
+            )}
+        </div>
       </div>
       
       <SettingsModal 

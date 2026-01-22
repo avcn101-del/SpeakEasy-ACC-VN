@@ -42,7 +42,7 @@ export const AACCard: React.FC<AACCardProps> = ({
   // --- RENDER LOGIC: INVISIBLE SPACER ---
   // If it's a placeholder AND we are NOT in edit mode, it should be an invisible gap.
   if (isPlaceholder && !isEditMode) {
-      return <div className="w-full aspect-square md:aspect-[4/3] pointer-events-none" />;
+      return <div className="w-full aspect-square md:aspect-[5/4] pointer-events-none" />;
   }
 
   const handleCardClick = () => {
@@ -81,7 +81,7 @@ export const AACCard: React.FC<AACCardProps> = ({
       return (
         <button
             onClick={handleCardClick}
-            className="w-full aspect-square md:aspect-[4/3] rounded-xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all animate-pop"
+            className="w-full aspect-square md:aspect-[5/4] rounded-2xl border-2 border-dashed border-slate-300 bg-slate-50 flex flex-col items-center justify-center text-slate-400 hover:text-indigo-600 hover:border-indigo-400 hover:bg-indigo-50 transition-all animate-pop"
         >
             <Plus size={32} />
             <span className="text-xs font-bold mt-1">Thêm</span>
@@ -96,41 +96,47 @@ export const AACCard: React.FC<AACCardProps> = ({
       className={`
         relative group
         flex flex-col items-center justify-center
-        aspect-square md:aspect-[4/3]
+        aspect-square md:aspect-[5/4]
         w-full
         ${symbol.color}
-        border-b-4 border-r-4 rounded-xl md:rounded-2xl
+        border-b-[3px] border-r-[3px] md:border-b-4 md:border-r-4 rounded-xl md:rounded-2xl
         active:border-b-0 active:border-r-0 active:translate-y-1 active:translate-x-1
-        transition-all duration-75
+        transition-all duration-100
         focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-blue-400
         select-none overflow-hidden
+        p-1
         ${isEditMode ? 'ring-2 ring-indigo-500 border-indigo-400 border-dashed' : ''}
         ${isMoving ? 'ring-4 ring-yellow-400 border-yellow-500 bg-yellow-100 animate-pulse scale-95' : ''}
       `}
       aria-label={isEditMode ? `Sửa ảnh cho ${symbol.label}` : symbol.label}
     >
       {/* Hit Slop Expansion */}
-      <span className="absolute -inset-2 md:-inset-4 bg-transparent pointer-events-auto z-10" />
+      <span className="absolute -inset-1 bg-transparent pointer-events-auto z-10" />
 
       {/* Content Rendering: Custom Image or Emoji */}
-      {symbol.image ? (
-        <img 
-          src={symbol.image} 
-          alt={symbol.label} 
-          className="h-10 w-10 md:h-16 md:w-16 object-cover rounded-lg mb-1 pointer-events-none"
-        />
-      ) : (
-        <span className="text-3xl md:text-5xl mb-1 filter drop-shadow-sm pointer-events-none leading-none">
-          {symbol.emoji}
-        </span>
-      )}
+      <div className="flex-1 flex items-center justify-center w-full overflow-hidden">
+        {symbol.image ? (
+            <img 
+            src={symbol.image} 
+            alt={symbol.label} 
+            className="h-full w-full object-contain rounded-lg pointer-events-none p-1"
+            />
+        ) : (
+            <span className="text-4xl md:text-5xl lg:text-6xl filter drop-shadow-sm pointer-events-none leading-none select-none transform transition-transform group-active:scale-110">
+            {symbol.emoji}
+            </span>
+        )}
+      </div>
 
-      <span className={`
-        font-bold text-slate-900 uppercase tracking-tight pointer-events-none leading-tight px-1 break-words w-full
-        ${isCompact ? 'text-[10px]' : 'text-[11px] md:text-base'}
-      `}>
-        {symbol.label}
-      </span>
+      {/* Label - Optimized for ASD readability (Clear, Sans-serif) */}
+      <div className="w-full text-center pb-1 md:pb-2">
+        <span className={`
+            block w-full font-bold text-slate-900 uppercase tracking-tight pointer-events-none leading-tight truncate px-1
+            ${isCompact ? 'text-[10px]' : 'text-xs md:text-base lg:text-lg'}
+        `}>
+            {symbol.label}
+        </span>
+      </div>
 
       {/* Edit Mode Overlays */}
       {isEditMode && !isMoving && (
@@ -145,7 +151,7 @@ export const AACCard: React.FC<AACCardProps> = ({
                 </div>
             )}
             
-            {/* MOVE BUTTON (Top Left) - Only for Core words, not Custom Filled (optional choice, but let's keep it consistent) */}
+            {/* MOVE BUTTON (Top Left) */}
             {!isSwapModeActive && (
                 <div 
                     role="button"
@@ -156,13 +162,11 @@ export const AACCard: React.FC<AACCardProps> = ({
                     className="absolute top-1 left-1 md:top-2 md:left-2 z-50 bg-white text-slate-700 p-1.5 md:p-2 rounded-full shadow-md hover:bg-yellow-100 hover:text-yellow-600 transition-colors border border-slate-200 pointer-events-auto active:scale-95"
                     title="Di chuyển / Sắp xếp lại"
                 >
-                    <ArrowRightLeft size={14} className="md:w-4 md:h-4" />
+                    <ArrowRightLeft size={16} className="md:w-5 md:h-5" />
                 </div>
             )}
 
             {/* RESET/DELETE BUTTON (Top Right) */}
-            {/* If Custom Filled -> Show Trash Can to Delete */}
-            {/* If Core with Image -> Show Undo to Reset Image */}
             {!isSwapModeActive && (
                 <div 
                     role="button"
@@ -180,7 +184,7 @@ export const AACCard: React.FC<AACCardProps> = ({
                     `}
                     title={isCustomFilled ? "Xóa từ này" : "Khôi phục hình gốc"}
                 >
-                    {isCustomFilled ? <Trash2 size={14} className="md:w-4 md:h-4" /> : <RotateCcw size={14} className="md:w-4 md:h-4" />}
+                    {isCustomFilled ? <Trash2 size={16} className="md:w-5 md:h-5" /> : <RotateCcw size={16} className="md:w-5 md:h-5" />}
                 </div>
             )}
 
