@@ -80,22 +80,47 @@ export const speak = (
 };
 
 const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () => void, onEnd?: () => void) => {
-    // 'gtx' is the most robust client for web usage without tokens.
-    // 'total=1&idx=0' helps with segmentation quirks.
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=vi&client=gtx&total=1&idx=0&textlen=${text.length}`;
+    const cleanText = text.trim();
+    
+    // 1. Punctuation Hack: Forces sentence-final intonation.
+    const hasPunctuation = ['.', '!', '?'].some(char => cleanText.endsWith(char));
+    const query = hasPunctuation ? cleanText : `${cleanText}.`;
+    
+    // 2. Cache Buster: Prevent stale audio from browser cache
+    const timestamp = Date.now();
+
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(query)}&tl=vi&client=tw-ob&t=${timestamp}`;
     
     const audio = new Audio(url);
     currentAudio = audio;
     
-    // Attempt to handle pitch/rate for Audio element
+    // 3. Short Word Speed Hack:
+    // Single words with heavy tones (like "Mẹ") often sound dragged out ("Mẹ...ẹ...ẹ") on Google TTS.
+    // We boost the playback speed significantly for single words to "clip" the tail, making it sound natural and snappy.
+    const isSingleWord = !cleanText.includes(' ') && cleanText.length < 10;
+    
+    let finalRate = rate;
+    
+    // Only apply speed hack if user hasn't already set a custom speed (approx 1.0)
+    if (isSingleWord && Math.abs(rate - 1.0) < 0.1) {
+        finalRate = 1.35; // 35% faster for single words to eliminate drag
+    }
+
     try {
-        if (Math.abs(pitch - 1.0) > 0.1 || Math.abs(rate - 1.0) > 0.1) {
-            audio.playbackRate = rate * pitch; 
+        // SCENARIO A: User wants Pitch Shift (Child Mode / High Pitch)
+        // We must change speed and DISABLE pitch preservation to simulate pitch shift.
+        if (Math.abs(pitch - 1.0) > 0.1) {
+            audio.playbackRate = finalRate * pitch; 
+            
             if ('preservesPitch' in audio) (audio as any).preservesPitch = false;
             else if ('mozPreservesPitch' in audio) (audio as any).mozPreservesPitch = false;
             else if ('webkitPreservesPitch' in audio) (audio as any).webkitPreservesPitch = false;
-        } else {
-            audio.playbackRate = 1.0;
+        } 
+        // SCENARIO B: Normal Pitch
+        // We apply the rate (including our Short Word Speed Hack).
+        // We let browser PRESERVE pitch (default behavior), so "Mẹ" is just faster/shorter, NOT higher pitched.
+        else {
+            audio.playbackRate = finalRate;
         }
     } catch (e) {}
 
