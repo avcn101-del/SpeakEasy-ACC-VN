@@ -3,8 +3,17 @@
 let currentAudio: HTMLAudioElement | null = null;
 
 // Initialize voices immediately
-if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-  window.speechSynthesis.getVoices();
+const loadVoices = () => {
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.getVoices();
+  }
+};
+
+if (typeof window !== 'undefined') {
+    loadVoices();
+    if ('speechSynthesis' in window) {
+        window.speechSynthesis.onvoiceschanged = loadVoices;
+    }
 }
 
 export const speak = (
@@ -14,7 +23,7 @@ export const speak = (
     pitch: number = 1.0,
     rate: number = 1.0
 ) => {
-  // 1. STOP all current audio (Network)
+  // 1. STOP all current audio
   if (currentAudio) {
     try {
         currentAudio.pause();
@@ -23,119 +32,94 @@ export const speak = (
     currentAudio = null;
   }
   
-  // Stop Native TTS
   if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
     window.speechSynthesis.cancel();
   }
 
   if (typeof window === 'undefined') return;
 
-  // 2. Check for Native Vietnamese Voice
-  let selectedVoice: SpeechSynthesisVoice | null = null;
+  // 2. DECIDE: Native vs Network
+  // We must decide Synchronously to preserve User Gesture for Audio.play()
   
+  let useNative = false;
+  let vnVoice: SpeechSynthesisVoice | undefined;
+
   if ('speechSynthesis' in window) {
-    const voices = window.speechSynthesis.getVoices();
-    // Broad filtering for VN voices
-    selectedVoice = voices.find(v => 
-        v.lang.toLowerCase().includes('vi') || 
-        v.name.toLowerCase().includes('viet') ||
-        v.name.toLowerCase().includes('linh')
-    ) || null;
+      const voices = window.speechSynthesis.getVoices();
+      
+      // Strict check: Only use native if we find a Vietnamese voice.
+      // Otherwise, the browser uses the default (English), which sounds broken.
+      vnVoice = voices.find(v => v.lang.toLowerCase().includes('vi'));
+      
+      if (vnVoice) {
+          useNative = true;
+      } else {
+          console.warn("No Native Vietnamese voice found. Switching to Network Audio.");
+      }
   }
 
-  // Helper to handle end of speech
-  const handleEnd = () => {
-    if (onEnd) onEnd();
-  };
-
-  const handleStart = () => {
-    if (onStart) onStart();
-  }
-
-  // 3. DECISION: Native vs Fallback
-  if (selectedVoice) {
-    // OPTION A: Use Native (Fast, Offline)
+  if (useNative && vnVoice) {
     const utterance = new SpeechSynthesisUtterance(text);
-    utterance.voice = selectedVoice;
+    utterance.voice = vnVoice;
     utterance.lang = 'vi-VN'; 
     utterance.pitch = pitch; 
-    utterance.rate = rate;   
-    
-    utterance.onstart = handleStart;
-    utterance.onend = handleEnd;
+    utterance.rate = rate;
+
+    utterance.onstart = () => {
+        if (onStart) onStart();
+    };
+    utterance.onend = () => {
+        if (onEnd) onEnd();
+    };
     utterance.onerror = (e) => {
-        console.warn("Native TTS Error, trying fallback", e);
-        playNetworkTTS(text, pitch, rate, handleStart, handleEnd);
+        console.warn("Native TTS Error:", e);
+        // If native fails mid-stream, we can't do much without user gesture, 
+        // but we can try network fallback just in case.
+        if (onEnd) onEnd();
     };
 
     window.speechSynthesis.speak(utterance);
   } else {
-    // OPTION B: Network Fallback (HTML5 Audio)
-    playNetworkTTS(text, pitch, rate, handleStart, handleEnd);
+    // 3. Network TTS Fallback
+    playNetworkTTS(text, pitch, rate, onStart, onEnd);
   }
 };
 
 const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () => void, onEnd?: () => void) => {
+    // Primary: Google Translate TTS (Client=gtx) - usually most reliable
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=vi&client=gtx`;
+    
+    // Backup: If we needed a secondary URL, we could chain them, but simple is better for now.
+    
+    const audio = new Audio(url);
+    currentAudio = audio;
+    
+    // Attempt to handle pitch/rate for Audio element
     try {
-        const encodedText = encodeURIComponent(text);
-        // Using Google Translate TTS API (Client-side usage requires direct Audio element, not fetch, to avoid CORS)
-        const url = `https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=vi&q=${encodedText}`;
-        
-        const audio = new Audio(url);
-        currentAudio = audio;
-        
-        // PITCH & RATE LOGIC FOR AUDIO ELEMENT
-        // HTML5 Audio doesn't support independent pitch shifting easily.
-        // We simulate it by disabling pitch preservation (if pitch != 1.0) and modifying rate.
-        
-        // If Pitch = 1.5 (High) and Rate = 1.0 -> Play at 1.5x speed (Chipmunk)
-        // If Pitch = 0.5 (Low) and Rate = 1.0 -> Play at 0.5x speed (Slow/Deep)
-        
-        try {
-            if (Math.abs(pitch - 1.0) > 0.1) {
-                const effectiveRate = rate * pitch;
-                audio.playbackRate = effectiveRate;
-                
-                // Disable pitch preservation to allow pitch shift (Chipmunk effect)
-                // This property is non-standard but supported in many browsers
-                if ('preservesPitch' in audio) {
-                    (audio as any).preservesPitch = false;
-                } else if ('mozPreservesPitch' in audio) {
-                    (audio as any).mozPreservesPitch = false;
-                } else if ('webkitPreservesPitch' in audio) {
-                    (audio as any).webkitPreservesPitch = false;
-                }
-            } else {
-                audio.playbackRate = rate;
-            }
-        } catch (e) {
-            console.warn("Could not set playback rate/pitch", e);
+        if (Math.abs(pitch - 1.0) > 0.1 || Math.abs(rate - 1.0) > 0.1) {
+            audio.playbackRate = rate * pitch; 
+            // Non-standard props to try and alter pitch vs speed
+            if ('preservesPitch' in audio) (audio as any).preservesPitch = false;
+            else if ('mozPreservesPitch' in audio) (audio as any).mozPreservesPitch = false;
+            else if ('webkitPreservesPitch' in audio) (audio as any).webkitPreservesPitch = false;
+        } else {
+            audio.playbackRate = 1.0;
         }
-        
-        audio.onplay = () => {
-            if (onStart) onStart();
-        };
-        
-        audio.onended = () => {
-            currentAudio = null;
-            if (onEnd) onEnd();
-        };
-        
-        audio.onerror = (e) => {
-            console.warn("Network TTS playback failed (Offline or blocked)", e);
-            currentAudio = null;
-            if (onEnd) onEnd();
-        };
+    } catch (e) {}
 
-        const playPromise = audio.play();
-        if (playPromise !== undefined) {
-            playPromise.catch(error => {
-                console.warn("Audio play blocked or failed:", error);
-                if (onEnd) onEnd();
-            });
-        }
-    } catch (e) {
-        console.error("Fallback TTS Critical Error:", e);
+    audio.onplay = () => { if (onStart) onStart(); };
+    audio.onended = () => { currentAudio = null; if (onEnd) onEnd(); };
+    audio.onerror = (e) => {
+        console.error("Network Audio Failed", e);
+        currentAudio = null;
         if (onEnd) onEnd();
+    };
+
+    const playPromise = audio.play();
+    if (playPromise !== undefined) {
+        playPromise.catch(error => {
+            console.warn("Playback prevented. User interaction required.", error);
+            if (onEnd) onEnd();
+        });
     }
 }
