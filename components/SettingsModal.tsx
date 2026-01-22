@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { X, Download, Upload, Share2, AlertTriangle, QrCode, Copy, Check, Eye, EyeOff, Volume2, Mic2, Link, Edit2, Save } from 'lucide-react';
+import { X, Download, Upload, Share2, AlertTriangle, QrCode, Copy, Check, Eye, EyeOff, Volume2, Mic2, Link, Edit2, Save, Wifi, WifiOff } from 'lucide-react';
 import QRCode from 'react-qr-code';
 import { AppSettings, VoiceSettings } from '../App';
 import { speak } from '../services/ttsService';
@@ -19,7 +19,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
     onClose,
     currentSettings = { showEditBtn: true, showAIBtn: true },
     onUpdateSettings,
-    voiceSettings = { pitch: 1.0, rate: 1.0 },
+    voiceSettings = { pitch: 1.0, rate: 1.0, forceOnline: false },
     onUpdateVoiceSettings
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -27,19 +27,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   const [copied, setCopied] = useState(false);
   
   // URL Management State
-  // Default to a placeholder. Once you host the app, you can edit this or it will auto-detect.
-  const [shareUrl, setShareUrl] = useState('https://speakeasy-aac.vercel.app');
+  const [shareUrl, setShareUrl] = useState('https://speak-easy-acc.vercel.app');
   const [isEditingUrl, setIsEditingUrl] = useState(false);
 
-  // Sync local state when prop changes (initial load)
+  // Sync local state when prop changes
   useEffect(() => {
     setLocalVoiceSettings(voiceSettings);
   }, [voiceSettings]);
 
-  // --- SMART URL DETECTION ---
   useEffect(() => {
     if (typeof window !== 'undefined') {
-        // Helper function to check if a URL is a valid "Production" URL
         const isRealUrl = (url: string) => {
             if (!url) return false;
             if (url.startsWith('blob:')) return false;
@@ -48,21 +45,16 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
             return true;
         };
 
-        // 1. Try to load saved custom URL from previous sessions
         const savedUrl = localStorage.getItem('aac-share-url');
         if (savedUrl && isRealUrl(savedUrl)) {
             setShareUrl(savedUrl);
             return;
         }
 
-        // 2. If no valid saved URL, check the current browser address
         const currentHref = window.location.href;
         if (isRealUrl(currentHref)) {
             setShareUrl(currentHref);
         }
-        
-        // If both are "dev" URLs, we stick to the default 'speakeasy-aac.vercel.app'
-        // This prevents 'blob:...' from ever showing up.
     }
   }, []);
 
@@ -73,11 +65,10 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
   if (!isOpen) return null;
 
-  // --- APP SHARE LOGIC ---
   const handleCopyLink = () => {
     navigator.clipboard.writeText(shareUrl);
     setCopied(true);
-    speak("Đã sao chép link", undefined, undefined, localVoiceSettings.pitch, localVoiceSettings.rate);
+    speak("Đã sao chép link", undefined, undefined, localVoiceSettings.pitch, localVoiceSettings.rate, localVoiceSettings.forceOnline);
     setTimeout(() => setCopied(false), 2000);
   };
 
@@ -89,9 +80,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                 text: 'Ứng dụng giao tiếp hình ảnh (AAC) miễn phí, hỗ trợ tiếng Việt và AI.',
                 url: shareUrl
             });
-        } catch (e) {
-            // User cancelled or failed
-        }
+        } catch (e) { }
     } else {
         handleCopyLink();
     }
@@ -106,8 +95,7 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
       }
   };
   
-  // Update local state instantly, then debounce/propagate to parent
-  const handleVoiceChange = (key: keyof VoiceSettings, value: number) => {
+  const handleVoiceChange = (key: keyof VoiceSettings, value: any) => {
       const newSettings = { ...localVoiceSettings, [key]: value };
       setLocalVoiceSettings(newSettings);
       
@@ -117,11 +105,9 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
   };
   
   const handlePreviewVoice = () => {
-      // Direct call without timeout to satisfy iOS "User Activation" requirements
-      speak("Thử giọng nói", undefined, undefined, localVoiceSettings.pitch, localVoiceSettings.rate);
+      speak("Thử giọng nói", undefined, undefined, localVoiceSettings.pitch, localVoiceSettings.rate, localVoiceSettings.forceOnline);
   };
 
-  // --- DATA EXPORT LOGIC ---
   const handleExport = async () => {
     try {
       const data = {
@@ -205,7 +191,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
         </div>
 
         {/* Scrollable Content */}
-        {/* flex-1 and min-h-0 are critical for nested scrolling in flex containers */}
         <div 
             className="flex-1 min-h-0 flex flex-col gap-6 p-6 overflow-y-auto overflow-x-hidden no-scrollbar pb-32"
             style={{ 
@@ -223,6 +208,24 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
              
              <div className="p-4 flex flex-col gap-4">
+                 {/* Force Online Toggle */}
+                 <div className="flex items-center justify-between pb-3 border-b border-slate-100">
+                     <div className="flex flex-col">
+                        <span className="text-sm font-bold text-slate-800 flex items-center gap-2">
+                            {localVoiceSettings.forceOnline ? <Wifi size={16} className="text-green-600"/> : <WifiOff size={16} className="text-slate-400"/>}
+                            Luôn dùng giọng Online
+                        </span>
+                        <span className="text-xs text-slate-500 mt-1">Bật nếu mất tiếng hoặc sai giọng.</span>
+                     </div>
+                     <button 
+                        onClick={() => handleVoiceChange('forceOnline', !localVoiceSettings.forceOnline)}
+                        onPointerUp={handlePreviewVoice}
+                        className={`w-12 h-6 rounded-full p-1 transition-colors ${localVoiceSettings.forceOnline ? 'bg-green-500' : 'bg-slate-300'}`}
+                     >
+                         <div className={`bg-white w-4 h-4 rounded-full shadow-md transform transition-transform ${localVoiceSettings.forceOnline ? 'translate-x-6' : 'translate-x-0'}`} />
+                     </button>
+                 </div>
+
                  {/* Pitch Slider */}
                  <div>
                     <div className="flex justify-between mb-1">
@@ -240,10 +243,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                         style={{ touchAction: 'none' }}
                         className="w-full h-2 bg-slate-200 rounded-lg appearance-none cursor-pointer accent-violet-600 focus:outline-none focus:ring-2 focus:ring-violet-400"
                     />
-                    <div className="flex justify-between text-[10px] text-slate-400 mt-1">
-                        <span>Trầm (Người lớn)</span>
-                        <span>Cao (Trẻ em)</span>
-                    </div>
                  </div>
 
                  {/* Rate Slider */}
@@ -275,7 +274,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
              </div>
              
              <div className="p-4 flex flex-col gap-3">
-                 
                  <div className="flex items-center justify-between">
                      <span className="text-sm font-medium text-slate-700">Hiển thị nút "Sửa" (✏️)</span>
                      <button 
@@ -302,7 +300,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
 
           {/* SECTION: DATA BACKUP */}
           <div className="grid grid-cols-2 gap-3 shrink-0">
-             {/* Export Button */}
             <button 
               onClick={handleExport}
               className="flex flex-col items-center justify-center gap-2 p-4 bg-emerald-50 hover:bg-emerald-100 border border-emerald-100 rounded-xl transition-all active:scale-95 group"
@@ -313,7 +310,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
               <span className="font-bold text-emerald-800 text-sm">Sao lưu</span>
             </button>
 
-             {/* Import Button */}
             <button 
               onClick={handleImportClick}
               className="flex flex-col items-center justify-center gap-2 p-4 bg-orange-50 hover:bg-orange-100 border border-orange-100 rounded-xl transition-all active:scale-95 group"
@@ -345,7 +341,6 @@ export const SettingsModal: React.FC<SettingsModalProps> = ({
                      />
                  </div>
                  
-                 {/* Editable URL Field */}
                  <div className="w-full flex items-center gap-2 mb-4 bg-slate-50 p-2 rounded-lg border border-slate-200">
                      {isEditingUrl ? (
                          <>

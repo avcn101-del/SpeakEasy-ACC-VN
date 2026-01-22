@@ -21,7 +21,8 @@ export const speak = (
     onStart?: () => void, 
     onEnd?: () => void,
     pitch: number = 1.0,
-    rate: number = 1.0
+    rate: number = 1.0,
+    forceOnline: boolean = false
 ) => {
   // 1. STOP all current audio
   if (currentAudio) {
@@ -39,22 +40,16 @@ export const speak = (
   if (typeof window === 'undefined') return;
 
   // 2. DECIDE: Native vs Network
-  // We must decide Synchronously to preserve User Gesture for Audio.play()
-  
   let useNative = false;
   let vnVoice: SpeechSynthesisVoice | undefined;
 
-  if ('speechSynthesis' in window) {
+  // Only check native if we are NOT forcing online
+  if (!forceOnline && 'speechSynthesis' in window) {
       const voices = window.speechSynthesis.getVoices();
-      
-      // Strict check: Only use native if we find a Vietnamese voice.
-      // Otherwise, the browser uses the default (English), which sounds broken.
+      // Strict check for Vietnamese
       vnVoice = voices.find(v => v.lang.toLowerCase().includes('vi'));
-      
       if (vnVoice) {
           useNative = true;
-      } else {
-          console.warn("No Native Vietnamese voice found. Switching to Network Audio.");
       }
   }
 
@@ -73,23 +68,21 @@ export const speak = (
     };
     utterance.onerror = (e) => {
         console.warn("Native TTS Error:", e);
-        // If native fails mid-stream, we can't do much without user gesture, 
-        // but we can try network fallback just in case.
-        if (onEnd) onEnd();
+        // Fallback if native crashes (though usually it just silently fails)
+        playNetworkTTS(text, pitch, rate, onStart, onEnd);
     };
 
     window.speechSynthesis.speak(utterance);
   } else {
-    // 3. Network TTS Fallback
+    // 3. Network TTS Fallback (or Forced)
     playNetworkTTS(text, pitch, rate, onStart, onEnd);
   }
 };
 
 const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () => void, onEnd?: () => void) => {
-    // Primary: Google Translate TTS (Client=gtx) - usually most reliable
-    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=vi&client=gtx`;
-    
-    // Backup: If we needed a secondary URL, we could chain them, but simple is better for now.
+    // 'gtx' is the most robust client for web usage without tokens.
+    // 'total=1&idx=0' helps with segmentation quirks.
+    const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(text)}&tl=vi&client=gtx&total=1&idx=0&textlen=${text.length}`;
     
     const audio = new Audio(url);
     currentAudio = audio;
@@ -98,7 +91,6 @@ const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () 
     try {
         if (Math.abs(pitch - 1.0) > 0.1 || Math.abs(rate - 1.0) > 0.1) {
             audio.playbackRate = rate * pitch; 
-            // Non-standard props to try and alter pitch vs speed
             if ('preservesPitch' in audio) (audio as any).preservesPitch = false;
             else if ('mozPreservesPitch' in audio) (audio as any).mozPreservesPitch = false;
             else if ('webkitPreservesPitch' in audio) (audio as any).webkitPreservesPitch = false;

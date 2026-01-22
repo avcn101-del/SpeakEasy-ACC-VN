@@ -29,6 +29,7 @@ export interface AppSettings {
 export interface VoiceSettings {
     pitch: number;
     rate: number;
+    forceOnline: boolean;
 }
 
 function App() {
@@ -56,9 +57,9 @@ function App() {
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
       try {
           const saved = localStorage.getItem('aac-voice-settings');
-          return saved ? JSON.parse(saved) : { pitch: 1.0, rate: 1.0 };
+          return saved ? JSON.parse(saved) : { pitch: 1.0, rate: 1.0, forceOnline: false };
       } catch {
-          return { pitch: 1.0, rate: 1.0 };
+          return { pitch: 1.0, rate: 1.0, forceOnline: false };
       }
   });
 
@@ -122,7 +123,14 @@ function App() {
     setSentence(newSentence);
     
     // Feedback
-    speak(symbol.label, undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+    speak(
+        symbol.label, 
+        undefined, 
+        undefined, 
+        voiceSettings.pitch, 
+        voiceSettings.rate, 
+        voiceSettings.forceOnline
+    );
 
     // Scroll
     setTimeout(() => {
@@ -138,7 +146,7 @@ function App() {
   const handleMoveStart = (symbol: AACSymbol) => {
       if (symbol.color === 'placeholder') return;
       setMoveSourceId(symbol.id);
-      speak("Chọn vị trí mới", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+      speak("Chọn vị trí mới", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
   };
 
   const handleSwapSymbols = (sourceId: string, targetId: string) => {
@@ -154,7 +162,7 @@ function App() {
         const newVocab = [...coreVocab];
         [newVocab[sourceIndex], newVocab[targetIndex]] = [newVocab[targetIndex], newVocab[sourceIndex]];
         setCoreVocab(newVocab);
-        speak("Đã chuyển", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+        speak("Đã chuyển", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
     }
     setMoveSourceId(null);
   };
@@ -168,7 +176,8 @@ function App() {
         () => setIsSpeaking(true),  
         () => setIsSpeaking(false),
         voiceSettings.pitch,
-        voiceSettings.rate
+        voiceSettings.rate,
+        voiceSettings.forceOnline
     );
   };
 
@@ -192,7 +201,7 @@ function App() {
         newVocab[coreIndex] = newSymbol;
         setCoreVocab(newVocab);
     }
-    speak("Đã lưu ảnh", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+    speak("Đã lưu ảnh", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
   };
 
   const handleImageReset = (symbolToReset: AACSymbol) => {
@@ -204,7 +213,7 @@ function App() {
         newVocab[coreIndex] = newSymbol;
         setCoreVocab(newVocab);
     }
-    speak("Đã khôi phục", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+    speak("Đã khôi phục", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
   };
   
   // --- ADD WORD LOGIC ---
@@ -229,7 +238,7 @@ function App() {
               type: WordType.NOUN 
           };
           setCoreVocab(newVocab);
-          speak("Đã thêm từ", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+          speak("Đã thêm từ", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
       }
       
       setIsAddModalOpen(false);
@@ -250,7 +259,7 @@ function App() {
               type: WordType.NOUN
           };
           setCoreVocab(newVocab);
-          speak("Đã xóa", undefined, undefined, voiceSettings.pitch, voiceSettings.rate);
+          speak("Đã xóa", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
       }
   }
 
