@@ -81,12 +81,18 @@ export const speak = (
 
 const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () => void, onEnd?: () => void) => {
     const cleanText = text.trim();
+    const isSingleWord = !cleanText.includes(' ') && cleanText.length < 10;
     
-    // 1. Punctuation Hack: Forces sentence-final intonation.
-    const hasPunctuation = ['.', '!', '?'].some(char => cleanText.endsWith(char));
-    const query = hasPunctuation ? cleanText : `${cleanText}.`;
+    // 1. Punctuation Logic
+    // For single words, we purposefully REMOVE punctuation to get the rawest sound sample,
+    // relying on the speed boost to handle finality. Adding a dot sometimes adds a lingering effect.
+    let query = cleanText;
+    if (!isSingleWord) {
+        const hasPunctuation = ['.', '!', '?'].some(char => cleanText.endsWith(char));
+        query = hasPunctuation ? cleanText : `${cleanText}.`;
+    }
     
-    // 2. Cache Buster: Prevent stale audio from browser cache
+    // 2. Cache Buster: Prevent stale audio
     const timestamp = Date.now();
 
     const url = `https://translate.google.com/translate_tts?ie=UTF-8&q=${encodeURIComponent(query)}&tl=vi&client=tw-ob&t=${timestamp}`;
@@ -94,21 +100,20 @@ const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () 
     const audio = new Audio(url);
     currentAudio = audio;
     
-    // 3. Short Word Speed Hack:
-    // Single words with heavy tones (like "Mẹ") often sound dragged out ("Mẹ...ẹ...ẹ") on Google TTS.
-    // We boost the playback speed significantly for single words to "clip" the tail, making it sound natural and snappy.
-    const isSingleWord = !cleanText.includes(' ') && cleanText.length < 10;
-    
+    // 3. Short Word Speed Hack (Aggressive):
+    // Single words with heavy tones (like "Mẹ") produce a "dragged out" artifact on Google TTS.
+    // We boost playback speed to 1.5x (50% faster) to clip this tail.
+    // This makes the word sound snappy and natural.
     let finalRate = rate;
     
-    // Only apply speed hack if user hasn't already set a custom speed (approx 1.0)
+    // Only apply if user hasn't set a custom rate
     if (isSingleWord && Math.abs(rate - 1.0) < 0.1) {
-        finalRate = 1.35; // 35% faster for single words to eliminate drag
+        finalRate = 1.5; 
     }
 
     try {
-        // SCENARIO A: User wants Pitch Shift (Child Mode / High Pitch)
-        // We must change speed and DISABLE pitch preservation to simulate pitch shift.
+        // SCENARIO A: Pitch Shifted (Child Mode)
+        // Disable pitch preservation to allow chipmunk effect
         if (Math.abs(pitch - 1.0) > 0.1) {
             audio.playbackRate = finalRate * pitch; 
             
@@ -117,8 +122,7 @@ const playNetworkTTS = (text: string, pitch: number, rate: number, onStart?: () 
             else if ('webkitPreservesPitch' in audio) (audio as any).webkitPreservesPitch = false;
         } 
         // SCENARIO B: Normal Pitch
-        // We apply the rate (including our Short Word Speed Hack).
-        // We let browser PRESERVE pitch (default behavior), so "Mẹ" is just faster/shorter, NOT higher pitched.
+        // Apply speed boost but PRESERVE pitch (default browser behavior), so it just sounds faster, not higher.
         else {
             audio.playbackRate = finalRate;
         }
