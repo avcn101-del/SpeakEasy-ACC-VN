@@ -1,9 +1,7 @@
+
 import { GoogleGenAI, Type } from "@google/genai";
 import { AACSymbol, WordType } from "../types";
-
-// In a real production app, you would proxy this through a backend to protect the key.
-// For this demo, we assume the environment variable is present or the user will select it via the window.aistudio flow if we implemented that.
-// Since the prompt asks to use process.env.API_KEY, we will use it.
+import { FRINGE_VOCAB, getVocabListForAI, getSymbolById } from "../data/fringeVocab";
 
 const createAI = () => {
     if (!process.env.API_KEY) {
@@ -19,55 +17,63 @@ export const predictNextSymbols = async (currentSentence: string[]): Promise<AAC
 
     const sentenceText = currentSentence.join(' ');
     
-    // Enhanced prompt to ensure context-aware predictions for a Vietnamese child.
-    
+    // We send the simplified list (id:label) to the AI
+    const vocabList = getVocabListForAI();
+
     try {
         const response = await ai.models.generateContent({
-            model: "gemini-3-flash-preview",
-            contents: `The user is a 6-year-old child communicating in Vietnamese via an AAC app.
+            model: "gemini-flash-lite-latest", 
+            contents: `
+            Role: AAC Prediction Engine for a 6-year-old Vietnamese child.
             
-            Current sentence context: "${sentenceText}"
+            Available Vocabulary (ID:Label):
+            [${vocabList}]
             
-            Task: detailed grammatical and semantic analysis of the sentence so far to predict the single most likely NEXT word.
-            Provide 4 distinct options that grammatically fit the context.
+            Current Sentence Context: "${sentenceText}"
             
-            Requirements:
-            - Vocabulary suitable for a 6-year-old.
-            - Must flow naturally from the previous words.
-            - Return JSON with label (Vietnamese), emoji, color (tailwind bg-*-200 border-*-400), and type (NOUN, VERB, ADJECTIVE).
-            - Colors: Nouns=orange, Verbs=green, Adjectives=blue.`,
+            Task: Select the 8 most likely next words from the Available Vocabulary list.
+            
+            Rules:
+            1. ONLY return IDs from the provided list. Do not invent new words.
+            2. Prioritize nouns (objects/foods) if the sentence ends with "Want" or "Eat".
+            3. Prioritize verbs/adjectives if the sentence starts with "I" or "Con".
+            `,
             config: {
-                systemInstruction: "You are an expert Speech Language Pathologist assisting a Vietnamese child. Prioritize grammatical correctness and core vocabulary.",
+                systemInstruction: "You are a precise selector. Return JSON array of strings (IDs).",
                 responseMimeType: "application/json",
                 responseSchema: {
                     type: Type.ARRAY,
-                    items: {
-                        type: Type.OBJECT,
-                        properties: {
-                            label: { type: Type.STRING },
-                            emoji: { type: Type.STRING },
-                            color: { type: Type.STRING },
-                            type: { type: Type.STRING }
-                        }
-                    }
+                    items: { type: Type.STRING } // We just want an array of IDs
                 }
             }
         });
 
         if (response.text) {
-            const rawData = JSON.parse(response.text);
-            // Map to our AACSymbol type, adding IDs
-            return rawData.map((item: any, index: number) => ({
-                id: `prediction-${index}-${Date.now()}`,
-                label: item.label,
-                emoji: item.emoji,
-                color: item.color,
-                type: item.type as WordType
-            }));
+            const predictedIds = JSON.parse(response.text) as string[];
+            
+            // Map the returned IDs back to our full, consistent Symbol objects
+            const results: AACSymbol[] = [];
+            
+            predictedIds.forEach(id => {
+                const symbol = getSymbolById(id);
+                if (symbol) {
+                    // We clone it to ensure unique React keys if needed, 
+                    // though for prediction display the static ID is fine.
+                    results.push(symbol);
+                }
+            });
+
+            // If AI returns nothing or invalid IDs, fallback to a default set
+            if (results.length === 0) {
+                return FRINGE_VOCAB.slice(0, 8);
+            }
+
+            return results;
         }
         return [];
     } catch (error) {
         console.error("Gemini prediction failed:", error);
-        return [];
+        // Fallback: Return random mix if AI fails
+        return FRINGE_VOCAB.slice(0, 8);
     }
 };

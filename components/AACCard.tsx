@@ -1,15 +1,15 @@
 
-import React, { useRef } from 'react';
+import React from 'react';
 import { AACSymbol } from '../types';
-import { Camera, RotateCcw, ArrowRightLeft, Plus, Trash2 } from 'lucide-react';
-import { compressImage } from '../utils/imageUtils';
+import { RotateCcw, ArrowRightLeft, Plus, Trash2, Camera } from 'lucide-react';
+// Note: compressImage and useRef are no longer needed here if we remove upload logic
 
 interface AACCardProps {
   symbol: AACSymbol;
   onClick: (symbol: AACSymbol) => void;
   isCompact?: boolean;
   isEditMode?: boolean;
-  onImageUpdate?: (symbol: AACSymbol, base64Image: string) => void;
+  onImageUpdate?: (symbol: AACSymbol, base64Image: string) => void; // Kept optional for VocabularyModal
   onImageReset?: (symbol: AACSymbol) => void;
   onMoveStart?: (symbol: AACSymbol) => void;
   isMoving?: boolean; 
@@ -31,16 +31,19 @@ export const AACCard: React.FC<AACCardProps> = ({
   onAddWord,
   onDeleteWord
 }) => {
-  const fileInputRef = useRef<HTMLInputElement>(null);
+  // Removed local fileInputRef logic. 
+  // We now only trigger onImageUpdate via the passed prop if it exists (which happens in Modal), 
+  // OR we use a different mechanism.
+  // Actually, to support Modal editing, we need the file input ONLY if onImageUpdate is provided.
   
+  const fileInputRef = React.useRef<HTMLInputElement>(null);
+  const canEditImage = isEditMode && !!onImageUpdate; // Only enable image editing if a handler is passed
+
   // --- CHECK IF THIS IS A PLACEHOLDER SLOT ---
   const isPlaceholder = symbol.color === 'placeholder';
-  // Check if this was a placeholder that has been filled (custom word)
-  // It has a 'sp' ID but a valid color
   const isCustomFilled = symbol.id.startsWith('sp') && !isPlaceholder;
 
   // --- RENDER LOGIC: INVISIBLE SPACER ---
-  // If it's a placeholder AND we are NOT in edit mode, it should be an invisible gap.
   if (isPlaceholder && !isEditMode) {
       return <div className="w-full aspect-square md:aspect-[5/4] pointer-events-none" />;
   }
@@ -48,31 +51,44 @@ export const AACCard: React.FC<AACCardProps> = ({
   const handleCardClick = () => {
     if (isEditMode) {
       if (isPlaceholder) {
-          // Clicked an empty slot -> Add Word
+          // Add Word (Main Board)
           if (onAddWord) onAddWord(symbol.id);
       } else if (isSwapModeActive) {
-         // If swapping, perform swap
+         // Swap (Main Board)
          onClick(symbol); 
-      } else {
-         // Normal Edit: Change Image
+      } else if (canEditImage) {
+         // Edit Image (Vocabulary Modal ONLY)
          fileInputRef.current?.click();
       }
+      // If edit mode is on but no swap/add/image-edit handler, do nothing or select?
+      // On Main Board, clicking a card in Edit Mode (without Swap active) now does NOTHING 
+      // except maybe show the "Move" button. This prevents accidental edits.
     } else {
-      // Normal Mode: Speak
+      // Normal Mode: Speak / Select
       onClick(symbol);
     }
   };
 
   const handleFileChange = async (event: React.ChangeEvent<HTMLInputElement>) => {
+    // Only used in Vocabulary Modal
+    if (!onImageUpdate) return;
+    
     const file = event.target.files?.[0];
-    if (file && onImageUpdate) {
-      try {
-        const compressedBase64 = await compressImage(file);
-        onImageUpdate(symbol, compressedBase64);
-      } catch (error) {
-        console.error("Error compressing card image:", error);
-        alert("Ảnh quá lớn hoặc lỗi. Vui lòng thử ảnh khác.");
-      }
+    if (file) {
+        // We need to dyn import or pass utility. 
+        // For simplicity, let's assume the parent handles the heavy lifting 
+        // OR re-implement compress here.
+        // To keep this file clean, let's just do a quick read or assume utils are available.
+        // Re-importing utils:
+        const { compressImage } = await import('../utils/imageUtils');
+        
+        try {
+            const compressedBase64 = await compressImage(file);
+            onImageUpdate(symbol, compressedBase64);
+        } catch (error) {
+            console.error("Error compressing card image:", error);
+            alert("Lỗi xử lý ảnh.");
+        }
     }
   };
 
@@ -89,7 +105,6 @@ export const AACCard: React.FC<AACCardProps> = ({
       );
   }
 
-  // --- RENDER LOGIC: STANDARD CARD ---
   return (
     <button
       onClick={handleCardClick}
@@ -108,12 +123,10 @@ export const AACCard: React.FC<AACCardProps> = ({
         ${isEditMode ? 'ring-2 ring-indigo-500 border-indigo-400 border-dashed' : ''}
         ${isMoving ? 'ring-4 ring-yellow-400 border-yellow-500 bg-yellow-100 animate-pulse scale-95' : ''}
       `}
-      aria-label={isEditMode ? `Sửa ảnh cho ${symbol.label}` : symbol.label}
+      aria-label={isEditMode ? `Chỉnh sửa ${symbol.label}` : symbol.label}
     >
-      {/* Hit Slop Expansion */}
       <span className="absolute -inset-1 bg-transparent pointer-events-auto z-10" />
 
-      {/* Content Rendering: Custom Image or Emoji */}
       <div className="flex-1 flex items-center justify-center w-full overflow-hidden">
         {symbol.image ? (
             <img 
@@ -128,7 +141,6 @@ export const AACCard: React.FC<AACCardProps> = ({
         )}
       </div>
 
-      {/* Label - Optimized for ASD readability (Clear, Sans-serif) */}
       <div className="w-full text-center pb-1 md:pb-2">
         <span className={`
             block w-full font-bold text-slate-900 uppercase tracking-tight pointer-events-none leading-tight truncate px-1
@@ -141,9 +153,8 @@ export const AACCard: React.FC<AACCardProps> = ({
       {/* Edit Mode Overlays */}
       {isEditMode && !isMoving && (
         <>
-            {/* Center Camera Icon - Purely Visual Indicator */}
-            {/* We only show this if NOT swapping, to indicate 'Click me to Edit' */}
-            {!isSwapModeActive && (
+            {/* Visual Indicator for Image Edit - ONLY IF ENABLED (Modal) */}
+            {canEditImage && !isSwapModeActive && (
                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover:opacity-100 transition-opacity">
                      <div className="bg-black/20 p-2 rounded-full backdrop-blur-sm">
                         <Camera size={24} className="text-white drop-shadow-md" />
@@ -151,22 +162,23 @@ export const AACCard: React.FC<AACCardProps> = ({
                 </div>
             )}
             
-            {/* MOVE BUTTON (Top Left) */}
-            {!isSwapModeActive && (
+            {/* MOVE BUTTON (Top Left) - ONLY IF NOT EDITING IMAGE (Main Board) */}
+            {onMoveStart && !isSwapModeActive && (
                 <div 
                     role="button"
                     onClick={(e) => {
                         e.stopPropagation();
-                        if(onMoveStart) onMoveStart(symbol);
+                        onMoveStart(symbol);
                     }}
                     className="absolute top-1 left-1 md:top-2 md:left-2 z-50 bg-white text-slate-700 p-1.5 md:p-2 rounded-full shadow-md hover:bg-yellow-100 hover:text-yellow-600 transition-colors border border-slate-200 pointer-events-auto active:scale-95"
-                    title="Di chuyển / Sắp xếp lại"
+                    title="Sắp xếp"
                 >
                     <ArrowRightLeft size={16} className="md:w-5 md:h-5" />
                 </div>
             )}
 
             {/* RESET/DELETE BUTTON (Top Right) */}
+            {/* In Modal: Reset Image. In Board: Delete Custom Word. */}
             {!isSwapModeActive && (
                 <div 
                     role="button"
@@ -180,26 +192,28 @@ export const AACCard: React.FC<AACCardProps> = ({
                     }}
                     className={`
                         absolute top-1 right-1 md:top-2 md:right-2 z-50 bg-white p-1.5 md:p-2 rounded-full shadow-md transition-colors border border-slate-200 pointer-events-auto active:scale-95
+                        ${(isCustomFilled || (canEditImage && symbol.image)) ? 'flex' : 'hidden'} 
                         ${isCustomFilled ? 'text-red-600 hover:bg-red-100' : 'text-slate-700 hover:bg-slate-100'}
                     `}
-                    title={isCustomFilled ? "Xóa từ này" : "Khôi phục hình gốc"}
                 >
                     {isCustomFilled ? <Trash2 size={16} className="md:w-5 md:h-5" /> : <RotateCcw size={16} className="md:w-5 md:h-5" />}
                 </div>
             )}
 
-            {/* Hidden File Input for Camera/Gallery */}
-            <input 
-                type="file" 
-                accept="image/*" 
-                ref={fileInputRef}
-                className="hidden"
-                onChange={handleFileChange}
-            />
+            {/* Hidden File Input (Only rendered if editing enabled) */}
+            {canEditImage && (
+                <input 
+                    type="file" 
+                    accept="image/*" 
+                    ref={fileInputRef}
+                    className="hidden"
+                    onChange={handleFileChange}
+                />
+            )}
         </>
       )}
 
-      {/* "Select Me" Overlay when Swapping */}
+      {/* Select Overlay (Swapping) */}
       {isSwapModeActive && !isMoving && (
           <div className="absolute inset-0 bg-indigo-500/10 border-2 border-indigo-400 border-dashed rounded-xl pointer-events-none flex items-center justify-center">
              <div className="bg-white/80 px-2 py-1 rounded text-xs font-bold text-indigo-700 shadow-sm backdrop-blur-sm">

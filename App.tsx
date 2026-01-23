@@ -6,9 +6,10 @@ import { AACCard } from './components/AACCard';
 import { SentenceStrip } from './components/SentenceStrip';
 import { SettingsModal } from './components/SettingsModal';
 import { AddWordModal } from './components/AddWordModal';
+import { VocabularyModal } from './components/VocabularyModal';
 import { speak } from './services/ttsService';
 import { predictNextSymbols } from './services/geminiService';
-import { Sparkles, Edit3, XCircle, Settings } from 'lucide-react';
+import { Sparkles, Edit3, XCircle, Settings, BookOpen } from 'lucide-react';
 
 // Animation style
 const ANIMATION_STYLES = `
@@ -43,6 +44,16 @@ function App() {
     }
   });
 
+  // State for Custom Fringe Images (Map ID -> Base64)
+  const [customFringeImages, setCustomFringeImages] = useState<Record<string, string>>(() => {
+      try {
+          const saved = localStorage.getItem('aac-fringe-images');
+          return saved ? JSON.parse(saved) : {};
+      } catch {
+          return {};
+      }
+  });
+
   // --- INTERFACE SETTINGS (Kid Mode) ---
   const [appSettings, setAppSettings] = useState<AppSettings>(() => {
       try {
@@ -54,7 +65,6 @@ function App() {
   });
 
   // --- VOICE SETTINGS ---
-  // Fix: Merging with defaults to ensure 'forceOnline' exists even for returning users
   const [voiceSettings, setVoiceSettings] = useState<VoiceSettings>(() => {
       try {
           const defaults = { pitch: 1.0, rate: 1.0, forceOnline: false };
@@ -75,6 +85,7 @@ function App() {
   const [isAiLoading, setIsAiLoading] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [isVocabularyOpen, setIsVocabularyOpen] = useState(false);
   const [isSpeaking, setIsSpeaking] = useState(false); 
   
   // ADD WORD STATE
@@ -90,6 +101,12 @@ function App() {
       localStorage.setItem('aac-core-vocab', JSON.stringify(coreVocab));
     } catch (e) { console.warn('Storage Error', e); }
   }, [coreVocab]);
+
+  useEffect(() => {
+      try {
+          localStorage.setItem('aac-fringe-images', JSON.stringify(customFringeImages));
+      } catch (e) { console.warn('Storage Error', e); }
+  }, [customFringeImages]);
 
   useEffect(() => {
       try {
@@ -112,25 +129,69 @@ function App() {
     }
   }, []);
 
+  // --- GLOBAL VOCAB UPDATE HANDLERS ---
+  // These handle updates for both Core (via state) and Fringe (via map)
+  
+  const handleGlobalImageUpdate = (id: string, base64: string) => {
+    // 1. Check if it's in Core Vocab
+    const coreIndex = coreVocab.findIndex(s => s.id === id);
+    if (coreIndex !== -1) {
+        // Update Core State
+        const newVocab = [...coreVocab];
+        newVocab[coreIndex] = { ...newVocab[coreIndex], image: base64 };
+        setCoreVocab(newVocab);
+    } else {
+        // Update Fringe Map
+        setCustomFringeImages(prev => ({ ...prev, [id]: base64 }));
+    }
+    speak("Đã lưu ảnh", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
+  };
+
+  const handleGlobalImageReset = (id: string) => {
+    // 1. Check if it's in Core Vocab
+    const coreIndex = coreVocab.findIndex(s => s.id === id);
+    if (coreIndex !== -1) {
+        // Reset Core State
+        const newVocab = [...coreVocab];
+        // Remove image property
+        const { image, ...rest } = newVocab[coreIndex];
+        newVocab[coreIndex] = { ...rest, image: undefined };
+        setCoreVocab(newVocab);
+    } else {
+        // Reset Fringe Map
+        const newMap = { ...customFringeImages };
+        delete newMap[id];
+        setCustomFringeImages(newMap);
+    }
+    speak("Đã khôi phục", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
+  };
+
+
   // --- INTERACTION HANDLERS ---
 
   const handleSymbolClick = (symbol: AACSymbol) => {
-    // Spacer check (Handled inside AACCard mostly, but just in case)
+    // Spacer check
     if (symbol.color === 'placeholder') return;
 
-    // 1. EDIT MODE: SWAP LOGIC
-    if (isEditMode && moveSourceId) {
+    // 1. EDIT MODE: SWAP LOGIC (Only applies to Core Vocab in Home View)
+    if (isEditMode && currentView === 'HOME' && moveSourceId) {
       handleSwapSymbols(moveSourceId, symbol.id);
       return; 
     }
     
     // 2. NORMAL MODE
-    const newSentence = [...sentence, symbol];
+    // Apply custom image override if it exists (for AI or Library items)
+    const finalSymbol = {
+        ...symbol,
+        image: customFringeImages[symbol.id] || symbol.image
+    };
+
+    const newSentence = [...sentence, finalSymbol];
     setSentence(newSentence);
     
     // Feedback
     speak(
-        symbol.label, 
+        finalSymbol.label, 
         undefined, 
         undefined, 
         voiceSettings.pitch, 
@@ -195,31 +256,15 @@ function App() {
     setIsAiLoading(true);
     setCurrentView('AI');
     const predictions = await predictNextSymbols(sentence.map(s => s.label));
-    setPredictedSymbols(predictions);
+    
+    // Hydrate predictions with custom images
+    const hydratedPredictions = predictions.map(p => ({
+        ...p,
+        image: customFringeImages[p.id] || p.image
+    }));
+
+    setPredictedSymbols(hydratedPredictions);
     setIsAiLoading(false);
-  };
-
-  const handleImageUpdate = (updatedSymbol: AACSymbol, base64Image: string) => {
-    const newSymbol = { ...updatedSymbol, image: base64Image };
-    const coreIndex = coreVocab.findIndex(s => s.id === newSymbol.id);
-    if (coreIndex !== -1) {
-        const newVocab = [...coreVocab];
-        newVocab[coreIndex] = newSymbol;
-        setCoreVocab(newVocab);
-    }
-    speak("Đã lưu ảnh", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
-  };
-
-  const handleImageReset = (symbolToReset: AACSymbol) => {
-    const { image, ...rest } = symbolToReset;
-    const newSymbol = { ...rest, image: undefined };
-    const coreIndex = coreVocab.findIndex(s => s.id === newSymbol.id);
-    if (coreIndex !== -1) {
-        const newVocab = [...coreVocab];
-        newVocab[coreIndex] = newSymbol;
-        setCoreVocab(newVocab);
-    }
-    speak("Đã khôi phục", undefined, undefined, voiceSettings.pitch, voiceSettings.rate, voiceSettings.forceOnline);
   };
   
   // --- ADD WORD LOGIC ---
@@ -236,11 +281,11 @@ function App() {
       
       if (slotIndex !== -1) {
           newVocab[slotIndex] = {
-              id: selectedSlotId, // Keep original ID (e.g. sp1) so we track position
+              id: selectedSlotId, 
               label: label,
-              image: image || undefined, // undefined if null
-              emoji: image ? undefined : '⭐', // Default emoji if no image
-              color: 'bg-white border-slate-300', // White for "Things/Fringe"
+              image: image || undefined, 
+              emoji: image ? undefined : '⭐', 
+              color: 'bg-white border-slate-300', 
               type: WordType.NOUN 
           };
           setCoreVocab(newVocab);
@@ -299,13 +344,23 @@ function App() {
 
             {/* Controls */}
             <div className="mb-4 flex justify-between items-center px-1">
-                <div className="flex-1">
+                {/* Left Group */}
+                <div className="flex gap-2">
                     <button
                         onClick={() => setIsSettingsOpen(true)}
-                        className="p-3 md:p-4 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors active:scale-95"
+                        className="p-3 md:p-4 text-slate-500 hover:text-slate-700 hover:bg-slate-200 rounded-full transition-colors active:scale-95 bg-white border border-slate-200 shadow-sm"
                         aria-label="Cài đặt"
                     >
-                        <Settings size={28} className="md:w-8 md:h-8" />
+                        <Settings size={24} className="md:w-6 md:h-6" />
+                    </button>
+                    
+                    {/* NEW LIBRARY BUTTON */}
+                    <button
+                        onClick={() => setIsVocabularyOpen(true)}
+                        className="p-3 md:p-4 text-indigo-600 hover:text-indigo-800 hover:bg-indigo-50 rounded-full transition-colors active:scale-95 bg-white border border-indigo-100 shadow-sm"
+                        aria-label="Kho từ vựng"
+                    >
+                        <BookOpen size={24} className="md:w-6 md:h-6" />
                     </button>
                 </div>
 
@@ -321,7 +376,7 @@ function App() {
                     )}
                 </div>
 
-                <div className="flex-1 flex justify-end">
+                <div className="flex justify-end">
                     {appSettings.showEditBtn && (
                         <button
                             onClick={() => {
@@ -336,7 +391,7 @@ function App() {
                                 }
                             `}
                         >
-                            {isEditMode ? <XCircle size={24} className="md:w-8 md:h-8" /> : <Edit3 size={24} className="md:w-8 md:h-8" />}
+                            {isEditMode ? <XCircle size={24} className="md:w-6 md:h-6" /> : <Edit3 size={24} className="md:w-6 md:h-6" />}
                         </button>
                     )}
                 </div>
@@ -344,9 +399,11 @@ function App() {
             
             {isEditMode && (
                 <div className="text-center mb-6 p-4 bg-indigo-50 text-indigo-800 rounded-xl text-sm md:text-base border-2 border-indigo-200 mx-1 flex flex-col gap-2 shadow-sm">
-                    <span className="font-bold">Chế độ chỉnh sửa đang bật</span>
+                    <span className="font-bold">Chế độ sắp xếp</span>
                     <span className="opacity-80">
-                    Nhấn vào ô trống (➕) để thêm từ mới. Nhấn vào thẻ để sửa ảnh.
+                    Nhấn nút <BookOpen className="inline w-4 h-4"/> để chỉnh sửa hình ảnh.
+                    Nhấn vào thẻ để di chuyển vị trí. 
+                    Nhấn vào ô trống (➕) để thêm từ mới.
                     </span>
                     {moveSourceId && (
                         <div className="mt-2 bg-yellow-100 text-yellow-800 p-2 rounded-lg border border-yellow-300 font-bold animate-pulse">
@@ -376,7 +433,12 @@ function App() {
 
                     <div className="grid grid-cols-4 md:grid-cols-6 lg:grid-cols-8 gap-2 md:gap-4">
                         {predictedSymbols.map(symbol => (
-                            <AACCard key={symbol.id} symbol={symbol} onClick={handleSymbolClick} />
+                            <AACCard 
+                                key={symbol.id} 
+                                symbol={symbol} 
+                                onClick={handleSymbolClick} 
+                                isEditMode={false} // No editing in AI view
+                            />
                         ))}
                     </div>
                     <hr className="my-8 border-slate-200" />
@@ -392,13 +454,12 @@ function App() {
                         symbol={symbol} 
                         onClick={handleSymbolClick} 
                         isEditMode={isEditMode}
-                        onImageUpdate={handleImageUpdate}
-                        onImageReset={handleImageReset}
                         onMoveStart={handleMoveStart}
                         isMoving={moveSourceId === symbol.id}
                         isSwapModeActive={!!moveSourceId}
                         onAddWord={handleAddWordClick}
                         onDeleteWord={handleDeleteCustomWord}
+                        // Note: onImageUpdate removed from here. Editing happens in Library.
                     />
                 ))}
                 </div>
@@ -413,6 +474,17 @@ function App() {
         onUpdateSettings={handleSettingsUpdate}
         voiceSettings={voiceSettings}
         onUpdateVoiceSettings={handleVoiceSettingsUpdate}
+      />
+
+      <VocabularyModal
+        isOpen={isVocabularyOpen}
+        onClose={() => setIsVocabularyOpen(false)}
+        onSelectSymbol={handleSymbolClick}
+        isEditMode={isEditMode}
+        coreVocab={coreVocab} // Pass Core
+        customImages={customFringeImages}
+        onUpdateImage={handleGlobalImageUpdate} // Unified Handler
+        onResetImage={handleGlobalImageReset} // Unified Handler
       />
 
       <AddWordModal 
